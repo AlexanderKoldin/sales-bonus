@@ -62,8 +62,8 @@ function analyzeSalesData(data, options) {
       const cost = purchasePrice * quantity;
       const profit = revenue - cost;
 
-      seller.revenue += Math.round(revenue * 100) / 100;
-      seller.profit += Math.round(profit * 100) / 100;
+      seller.revenue = parseFloat((seller.revenue + revenue).toFixed(2));
+      seller.profit += profit;
 
       if (sku !== "unknown") {
         if (!seller.top_products[sku]) {
@@ -88,7 +88,7 @@ function analyzeSalesData(data, options) {
     return {
       seller_id: seller.seller_id,
       name: seller.name,
-      revenue: Math.round(seller.revenue * 100) / 100,
+      revenue: seller.revenue,
       profit: Math.round(seller.profit * 100) / 100,
       sales_count: seller.sales_count,
       top_products: topProducts,
