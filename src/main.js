@@ -16,8 +16,10 @@ function calculateSimpleRevenue(purchase, _product) {
  * @returns {number}
  */
 function calculateBonusByProfit(index, total, seller) {
-  const coefficients = [0.15, 0.1, 0.1, 0.05, 0];
-  return index < coefficients.length ? seller.revenue * coefficients[index] : 0;
+  if (index === 0) return 150;
+  if (index === 1 || index === 2) return 100;
+  if (index === 3) return 50;
+  return 0;
 }
 
 /**
@@ -28,29 +30,35 @@ function calculateBonusByProfit(index, total, seller) {
  */
 function analyzeSalesData(data, options) {
   if (!data) throw new Error("No data");
-  if (!data.sellers) throw new Error("No sellers");
-  if (!data.products) throw new Error("No products");
-  if (!data.purchase_records) throw new Error("No purchase_records");
+  if (!data.sellers || data.sellers.length === 0) throw new Error("No sellers");
+  if (!data.products || data.products.length === 0) throw new Error("No products");
+  if (!data.purchase_records || data.purchase_records.length === 0) throw new Error("No purchase_records");
+  if (!options || !options.calculateRevenue || !options.calculateBonus) throw new Error("Invalid options");
 
-  if (!options.calculateRevenue || !options.calculateBonus) throw new Error("Invalid options");
+  const sellersIndex = data.sellers.reduce((acc, seller) => {
+    acc[seller.id] = seller;
+    return acc;
+  }, {});
 
-  const sellers = data.sellers.reduce((acc, seller) => {
-    acc[seller.id] = {
-      seller_id: seller.id,
+  const sellers = {};
+  Object.keys(sellersIndex).forEach((id) => {
+    const seller = sellersIndex[id];
+    sellers[id] = {
+      seller_id: id,
       name: seller.name,
       sales_count: 0,
       revenue: 0,
       profit: 0,
       top_products: {},
     };
-    return acc;
-  }, {});
+  });
 
   data.purchase_records.forEach((purchase) => {
-    const seller = sellers[purchase.seller_id];
+    const sellerId = purchase.seller_id;
+    const seller = sellers[sellerId];
     if (!seller) return;
 
-    const product = data.products.find((p) => p.sku === purchase.sku);
+    const product = data.products.find((p) => p.sku === purchase.sku) || {};
 
     seller.sales_count += purchase.quantity;
     const revenue = options.calculateRevenue(purchase, product);
