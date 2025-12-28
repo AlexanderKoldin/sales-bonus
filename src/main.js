@@ -5,7 +5,8 @@
  * @returns {number}
  */
 function calculateSimpleRevenue(purchase, _product) {
-  return purchase.quantity * purchase.sale_price * (1 - purchase.discount / 100);
+  // ✅ ФИКС: используем unit_price вместо sale_price!
+  return purchase.quantity * (purchase.unit_price || _product.price || 0) * (1 - (purchase.discount || 0) / 100);
 }
 
 /**
@@ -35,22 +36,18 @@ function analyzeSalesData(data, options) {
   if (!data.purchase_records || data.purchase_records.length === 0) throw new Error("No purchase_records");
   if (!options || !options.calculateRevenue || !options.calculateBonus) throw new Error("Invalid options");
 
-  const sellersIndex = {};
-  data.sellers.forEach((seller) => {
-    sellersIndex[seller.id] = seller;
-    sellersIndex[seller.seller_id] = seller;
-  });
+  const sellers = data.sellers.map((seller) => ({
+    ...seller,
+    sales_count: 0,
+    revenue: 0,
+    profit: 0,
+    top_products: {},
+  }));
 
-  const sellers = {};
-  data.sellers.forEach((seller) => {
-    sellers[seller.id || seller.seller_id] = {
-      seller_id: seller.id || seller.seller_id,
-      name: seller.name,
-      sales_count: 0,
-      revenue: 0,
-      profit: 0,
-      top_products: {},
-    };
+  const sellerIndex = {};
+  sellers.forEach((seller) => {
+    if (seller.seller_id) sellerIndex[seller.seller_id] = seller;
+    if (seller.id) sellerIndex[seller.id] = seller;
   });
 
   const productsIndex = data.products.reduce((acc, product) => {
@@ -59,8 +56,8 @@ function analyzeSalesData(data, options) {
   }, {});
 
   data.purchase_records.forEach((purchase) => {
-    const sellerId = purchase.seller_id || purchase.sellerId;
-    const seller = sellers[sellerId];
+    let seller = sellerIndex[purchase.seller_id];
+    if (!seller) seller = sellerIndex[purchase.id];
 
     if (!seller) return;
 
@@ -75,7 +72,7 @@ function analyzeSalesData(data, options) {
     seller.top_products[sku] = (seller.top_products[sku] || 0) + (Number(purchase.quantity) || 0);
   });
 
-  const sellerArray = Object.values(sellers);
+  const sellerArray = sellers.filter((seller) => seller.sales_count > 0);
   sellerArray.sort((a, b) => (b.revenue || 0) - (a.revenue || 0));
 
   sellerArray.forEach((seller, index) => {
