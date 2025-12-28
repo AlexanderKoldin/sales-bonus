@@ -1,56 +1,84 @@
+/**
+ * Главная функция анализа продаж
+ * @param {Object} data
+ * @param {Object} options
+ * @returns {Array}
+ */
 function analyzeSalesData(data, options) {
-  if (!data) throw new Error("No data");
-  if (!data.sellers || data.sellers.length === 0) throw new Error("No sellers");
-  if (!data.products || data.products.length === 0) throw new Error("No products");
-  if (!data.purchase_records || data.purchase_records.length === 0) throw new Error("No purchase_records");
-  if (!options || !options.calculateRevenue || !options.calculateBonus) throw new Error("Invalid options");
+  const sellersIndex = {};
+  const productsIndex = {};
 
-
-  const sellers = {};
   data.sellers.forEach((seller) => {
-    const sellerId = seller.seller_id || seller.id;
-    sellers[sellerId] = {
-      seller_id: sellerId,
-      name: seller.name,
+    sellersIndex[seller.id] = {
+      id: seller.id,
+      name: seller.name || seller.title || `${seller.first_name ?? ""} ${seller.last_name ?? ""}`.trim(),
       sales_count: 0,
       revenue: 0,
       profit: 0,
-      top_products: {},
+      bonus: 0,
     };
   });
 
-  const productsIndex = data.products.reduce((acc, product) => {
-    acc[product.sku] = product;
-    return acc;
-  }, {});
+  data.products.forEach((product) => {
+    productsIndex[product.sku] = product;
+  });
 
   data.purchase_records.forEach((purchase) => {
-    const sellerId = purchase.seller_id;
-    const seller = sellers[sellerId];
+    const sellerId = purchase.seller_id ?? purchase.sellerId ?? purchase.seller;
+
+    const sku = purchase.sku ?? purchase.product_sku ?? purchase.productSku ?? purchase.product;
+
+    const seller = sellersIndex[sellerId];
     if (!seller) return;
 
-    const product = productsIndex[purchase.sku] || {};
-    seller.sales_count += Number(purchase.quantity) || 0;
+    const product = productsIndex[sku];
+    if (!product) return;
+
+    const quantity = Number(purchase.quantity ?? purchase.count ?? purchase.amount) || 0;
 
     const revenue = options.calculateRevenue(purchase, product);
-    seller.revenue += Number(revenue) || 0;
-    seller.profit += Number(revenue * 0.15) || 0;
+    const profit = calculateProfit(purchase, revenue);
 
-    seller.top_products[purchase.sku] = (seller.top_products[purchase.sku] || 0) + Number(purchase.quantity || 0);
+    seller.sales_count += quantity;
+    seller.revenue += revenue;
+    seller.profit += profit;
   });
 
-  const sellerArray = Object.values(sellers); // ← ВСЕ 5!
-  sellerArray.sort((a, b) => (b.revenue || 0) - (a.revenue || 0));
-
-  sellerArray.forEach((seller, index) => {
-    seller.bonus = options.calculateBonus(index, sellerArray.length, seller);
+  Object.values(sellersIndex).forEach((seller) => {
+    seller.bonus = options.calculateBonus(seller);
   });
 
-  sellerArray.forEach((seller) => {
-    seller.top_products = Object.entries(seller.top_products)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([sku, quantity]) => ({ sku, quantity }));
-  });
+  return Object.values(sellersIndex).sort((a, b) => b.profit - a.profit);
+}
 
-  return sellerArray;
+function calculateSimpleRevenue(purchase, product) {
+  const price = Number(product.price) || 0;
+
+  const quantity = Number(purchase.quantity ?? purchase.count ?? purchase.amount) || 0;
+
+  return price * quantity;
+}
+
+function calculateProfit(purchase, revenue) {
+  if (purchase.profit != null) {
+    return Number(purchase.profit) || 0;
+  }
+
+  return revenue * 0.15;
+}
+
+function calculateBonusByProfit(seller) {
+  if (seller.profit > 100000) {
+    return seller.profit * 0.1;
+  }
+
+  if (seller.profit > 50000) {
+    return seller.profit * 0.07;
+  }
+
+  if (seller.profit > 10000) {
+    return seller.profit * 0.05;
+  }
+
+  return 0;
+}
