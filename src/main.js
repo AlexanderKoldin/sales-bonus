@@ -1,28 +1,4 @@
 /**
- * Функция для расчета выручки
- * @param purchase запись о покупке
- * @param _product карточка товара
- * @returns {number}
- */
-function calculateSimpleRevenue(purchase, _product) {
-  return purchase.quantity * purchase.sale_price * (1 - purchase.discount / 100);
-}
-
-/**
- * Функция для расчета бонусов
- * @param index порядковый номер в отсортированном массиве
- * @param total общее число продавцов
- * @param seller карточка продавца
- * @returns {number}
- */
-function calculateBonusByProfit(index, total, seller) {
-  if (index === 0) return 150;
-  if (index === 1 || index === 2) return 100;
-  if (index === 3) return 50;
-  return 0;
-}
-
-/**
  * Функция для анализа данных продаж
  * @param data
  * @param options
@@ -37,7 +13,7 @@ function analyzeSalesData(data, options) {
 
   const sellers = data.sellers
     .map((seller) => ({
-      seller_id: seller.id,
+      seller_id: seller.seller_id || seller.id,
       name: seller.name,
       sales_count: 0,
       revenue: 0,
@@ -61,16 +37,19 @@ function analyzeSalesData(data, options) {
     const product = productsIndex[purchase.sku] || {};
 
     seller.sales_count += Number(purchase.quantity) || 0;
+
     const revenue = options.calculateRevenue(purchase, product);
     seller.revenue += Number(revenue) || 0;
-    seller.profit += Number(purchase.profit) || 0; // ✅ profit из purchase
+
+    const cost = purchase.quantity * (product.cost_price || 0);
+    seller.profit += revenue - cost;
 
     const sku = purchase.sku || "unknown";
     seller.top_products[sku] = (seller.top_products[sku] || 0) + (Number(purchase.quantity) || 0);
   });
 
   const sellerArray = Object.values(sellers);
-  sellerArray.sort((a, b) => b.revenue - a.revenue);
+  sellerArray.sort((a, b) => b.profit - a.profit);
 
   sellerArray.forEach((seller, index) => {
     seller.bonus = options.calculateBonus(index, sellerArray.length, seller);
