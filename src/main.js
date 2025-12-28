@@ -35,37 +35,38 @@ function analyzeSalesData(data, options) {
   if (!data.purchase_records || data.purchase_records.length === 0) throw new Error("No purchase_records");
   if (!options || !options.calculateRevenue || !options.calculateBonus) throw new Error("Invalid options");
 
-  const sellersIndex = data.sellers.reduce((acc, seller) => {
-    acc[seller.id] = seller;
-    return acc;
-  }, {});
-
-  const sellers = {};
-  Object.keys(sellersIndex).forEach((id) => {
-    const seller = sellersIndex[id];
-    sellers[id] = {
-      seller_id: id,
+  const sellers = data.sellers
+    .map((seller) => ({
+      seller_id: seller.id,
       name: seller.name,
       sales_count: 0,
       revenue: 0,
       profit: 0,
       top_products: {},
-    };
-  });
+    }))
+    .reduce((acc, seller) => {
+      acc[seller.seller_id] = seller;
+      return acc;
+    }, {});
+
+  const productsIndex = data.products.reduce((acc, product) => {
+    acc[product.sku] = product;
+    return acc;
+  }, {});
 
   data.purchase_records.forEach((purchase) => {
-    const sellerId = purchase.seller_id;
-    const seller = sellers[sellerId];
+    const seller = sellers[purchase.seller_id];
     if (!seller) return;
 
-    const product = data.products.find((p) => p.sku === purchase.sku) || {};
+    const product = productsIndex[purchase.sku] || {};
 
-    seller.sales_count += purchase.quantity;
+    seller.sales_count += Number(purchase.quantity) || 0;
     const revenue = options.calculateRevenue(purchase, product);
-    seller.revenue += revenue;
-    seller.profit += purchase.profit || 0;
+    seller.revenue += Number(revenue) || 0;
+    seller.profit += Number(purchase.profit) || 0; // ✅ profit из purchase
 
-    seller.top_products[purchase.sku] = (seller.top_products[purchase.sku] || 0) + purchase.quantity;
+    const sku = purchase.sku || "unknown";
+    seller.top_products[sku] = (seller.top_products[sku] || 0) + (Number(purchase.quantity) || 0);
   });
 
   const sellerArray = Object.values(sellers);
