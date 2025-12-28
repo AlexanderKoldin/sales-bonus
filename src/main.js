@@ -92,7 +92,9 @@ function analyzeSalesData(data, options) {
         if (b.quantity !== a.quantity) {
           return b.quantity - a.quantity;
         }
-        return a.sku.localeCompare(b.sku);
+
+        const getSkuNumber = (sku) => parseInt(sku.replace("SKU_", "")) || 0;
+        return getSkuNumber(a.sku) - getSkuNumber(b.sku);
       })
       .slice(0, 10);
   });
