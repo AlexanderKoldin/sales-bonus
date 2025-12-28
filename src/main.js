@@ -10,11 +10,11 @@ function calculateBonusByProfit(index, total, seller) {
   const profit = seller.profit || 0;
 
   if (index === 0) {
-    return profit * 0.15;
+    return Math.round(profit * 0.15 * 100) / 100;
   } else if (index === 1 || index === 2) {
-    return profit * 0.1;
+    return Math.round(profit * 0.1 * 100) / 100;
   } else if (index === 3) {
-    return profit * 0.05;
+    return Math.round(profit * 0.05 * 100) / 100;
   }
   return 0;
 }
@@ -48,7 +48,6 @@ function analyzeSalesData(data, options) {
     productsIndex[product.sku] = product;
   });
 
-  // Обрабатываем покупки
   data.purchase_records.forEach((record) => {
     const sellerId = record.seller_id;
     const seller = sellersIndex[sellerId];
@@ -61,8 +60,9 @@ function analyzeSalesData(data, options) {
       const quantity = Number(item.quantity) || 1;
 
       const revenue = options.calculateRevenue(item, product);
-
-      const profit = revenue * 0.15;
+      const purchasePrice = Number(product.purchase_price) || 0;
+      const cost = purchasePrice * quantity;
+      const profit = revenue - cost;
 
       seller.sales_count += quantity;
       seller.revenue += revenue;
@@ -82,12 +82,11 @@ function analyzeSalesData(data, options) {
 
   sellerArray.forEach((seller, index) => {
     seller.bonus = options.calculateBonus(index, sellerArray.length, seller);
-
     seller.revenue = Math.round(seller.revenue * 100) / 100;
     seller.profit = Math.round(seller.profit * 100) / 100;
     seller.bonus = Math.round(seller.bonus * 100) / 100;
 
-    const topProducts = Object.entries(seller.top_products)
+    seller.top_products = Object.entries(seller.top_products)
       .map(([sku, quantity]) => ({ sku, quantity }))
       .sort((a, b) => {
         if (b.quantity !== a.quantity) {
@@ -96,8 +95,6 @@ function analyzeSalesData(data, options) {
         return a.sku.localeCompare(b.sku);
       })
       .slice(0, 10);
-
-    seller.top_products = topProducts.length > 0 ? topProducts : [{ sku: "unknown", quantity: seller.sales_count }];
   });
 
   return sellerArray;
