@@ -1,14 +1,3 @@
-function calculateSimpleRevenue(purchase, _product) {
-  return purchase.sale_price * purchase.quantity * (1 - purchase.discount / 100);
-}
-
-function calculateBonusByProfit(index, total, seller) {
-  if (index === 0) return 150;
-  if (index === 1 || index === 2) return 100;
-  if (index === 3) return 50;
-  return 0;
-}
-
 function analyzeSalesData(data, options) {
   if (!data) throw new Error("No data");
   if (!data.sellers || data.sellers.length === 0) throw new Error("No sellers");
@@ -16,10 +5,12 @@ function analyzeSalesData(data, options) {
   if (!data.purchase_records || data.purchase_records.length === 0) throw new Error("No purchase_records");
   if (!options || !options.calculateRevenue || !options.calculateBonus) throw new Error("Invalid options");
 
+
   const sellers = {};
   data.sellers.forEach((seller) => {
-    sellers[seller.seller_id || seller.id] = {
-      seller_id: seller.seller_id || seller.id,
+    const sellerId = seller.seller_id || seller.id;
+    sellers[sellerId] = {
+      seller_id: sellerId,
       name: seller.name,
       sales_count: 0,
       revenue: 0,
@@ -48,7 +39,7 @@ function analyzeSalesData(data, options) {
     seller.top_products[purchase.sku] = (seller.top_products[purchase.sku] || 0) + Number(purchase.quantity || 0);
   });
 
-  const sellerArray = Object.values(sellers).filter((s) => s.revenue > 0);
+  const sellerArray = Object.values(sellers); // ← ВСЕ 5!
   sellerArray.sort((a, b) => (b.revenue || 0) - (a.revenue || 0));
 
   sellerArray.forEach((seller, index) => {
@@ -63,4 +54,3 @@ function analyzeSalesData(data, options) {
   });
 
   return sellerArray;
-}
