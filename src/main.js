@@ -2,13 +2,11 @@ function calculateSimpleRevenue(purchase, product) {
   const salePrice = Number(purchase.sale_price) || 0;
   const quantity = Number(purchase.quantity) || 1;
   const discount = Number(purchase.discount) || 0;
-
   return salePrice * quantity * (1 - discount / 100);
 }
 
 function calculateBonusByProfit(index, total, seller) {
   const profit = seller.profit || 0;
-
   if (index === 0) {
     return Math.round(profit * 0.15 * 100) / 100;
   } else if (index === 1 || index === 2) {
@@ -51,9 +49,7 @@ function analyzeSalesData(data, options) {
   data.purchase_records.forEach((record) => {
     const sellerId = record.seller_id;
     const seller = sellersIndex[sellerId];
-
     if (!seller) return;
-
     seller.sales_count += 1;
 
     record.items.forEach((item) => {
@@ -66,8 +62,8 @@ function analyzeSalesData(data, options) {
       const cost = purchasePrice * quantity;
       const profit = revenue - cost;
 
-      seller.revenue += revenue;
-      seller.profit += profit;
+      seller.revenue += Math.round(revenue * 100) / 100;
+      seller.profit += Math.round(profit * 100) / 100;
 
       if (sku !== "unknown") {
         if (!seller.top_products[sku]) {
