@@ -5,8 +5,7 @@
  * @returns {number}
  */
 function calculateSimpleRevenue(purchase, _product) {
-  // @TODO: Расчет выручки от операции
-  return purchase.quantity * _product.price;
+  return purchase.quantity * purchase.sale_price * (1 - purchase.discount / 100);
 }
 
 /**
@@ -17,11 +16,8 @@ function calculateSimpleRevenue(purchase, _product) {
  * @returns {number}
  */
 function calculateBonusByProfit(index, total, seller) {
-  // @TODO: Расчет бонуса от позиции в рейтинге
-  if (index === 0) return 1000;
-  if (index === 1) return 700;
-  if (index === 2) return 500;
-  return Math.max(100, 500 * (1 - index / total));
+  const coefficients = [0.15, 0.1, 0.1, 0.05, 0];
+  return index < coefficients.length ? seller.revenue * coefficients[index] : 0;
 }
 
 /**
@@ -31,43 +27,37 @@ function calculateBonusByProfit(index, total, seller) {
  * @returns {{revenue, top_products, bonus, name, sales_count, profit, seller_id}[]}
  */
 function analyzeSalesData(data, options) {
-  // @TODO: Проверка входных данных
-  // @TODO: Проверка наличия опций
-  // @TODO: Подготовка промежуточных данных для сбора статистики
-  // @TODO: Индексация продавцов и товаров для быстрого доступа
-  // @TODO: Расчет выручки и прибыли для каждого продавца
-  // @TODO: Сортировка продавцов по прибыли
-  // @TODO: Назначение премий на основе ранжирования
-  // @TODO: Подготовка итоговой коллекции с нужными полями
+  if (!data) throw new Error("No data");
+  if (!data.sellers) throw new Error("No sellers");
+  if (!data.products) throw new Error("No products");
+  if (!data.purchase_records) throw new Error("No purchase_records");
 
-  if (!data || !Array.isArray(data)) return [];
-  if (!options.calculateRevenue || !options.calculateBonus) return [];
+  if (!options.calculateRevenue || !options.calculateBonus) throw new Error("Invalid options");
 
-  const sellers = {};
+  const sellers = data.sellers.reduce((acc, seller) => {
+    acc[seller.id] = {
+      seller_id: seller.id,
+      name: seller.name,
+      sales_count: 0,
+      revenue: 0,
+      profit: 0,
+      top_products: {},
+    };
+    return acc;
+  }, {});
 
-  data.forEach((purchase) => {
-    const sellerId = purchase.seller_id;
+  data.purchase_records.forEach((purchase) => {
+    const seller = sellers[purchase.seller_id];
+    if (!seller) return;
 
-    if (!sellers[sellerId]) {
-      sellers[sellerId] = {
-        seller_id: sellerId,
-        name: purchase.seller_name,
-        sales_count: 0,
-        revenue: 0,
-        profit: 0,
-        top_products: {},
-      };
-    }
+    const product = data.products.find((p) => p.sku === purchase.sku);
 
-    sellers[sellerId].sales_count += purchase.quantity;
+    seller.sales_count += purchase.quantity;
+    const revenue = options.calculateRevenue(purchase, product);
+    seller.revenue += revenue;
+    seller.profit += purchase.profit || 0;
 
-    const productData = { price: purchase.unit_price };
-    const revenue = options.calculateRevenue(purchase, productData);
-    sellers[sellerId].revenue += revenue;
-
-    const productName = purchase.product_name;
-    sellers[sellerId].top_products[productName] =
-      (sellers[sellerId].top_products[productName] || 0) + purchase.quantity;
+    seller.top_products[purchase.sku] = (seller.top_products[purchase.sku] || 0) + purchase.quantity;
   });
 
   const sellerArray = Object.values(sellers);
@@ -79,8 +69,9 @@ function analyzeSalesData(data, options) {
 
   sellerArray.forEach((seller) => {
     seller.top_products = Object.entries(seller.top_products)
-      .sort(([, countA], [, countB]) => countB - countA)
-      .slice(0, 3);
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3)
+      .map(([sku, quantity]) => ({ sku, quantity }));
   });
 
   return sellerArray;
