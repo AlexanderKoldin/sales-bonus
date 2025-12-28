@@ -54,6 +54,8 @@ function analyzeSalesData(data, options) {
 
     if (!seller) return;
 
+    seller.sales_count += 1;
+
     record.items.forEach((item) => {
       const sku = item.sku || "unknown";
       const product = productsIndex[sku] || {};
@@ -64,7 +66,6 @@ function analyzeSalesData(data, options) {
       const cost = purchasePrice * quantity;
       const profit = revenue - cost;
 
-      seller.sales_count += quantity;
       seller.revenue += revenue;
       seller.profit += profit;
 
@@ -92,9 +93,7 @@ function analyzeSalesData(data, options) {
         if (b.quantity !== a.quantity) {
           return b.quantity - a.quantity;
         }
-
-        const getSkuNumber = (sku) => parseInt(sku.replace("SKU_", "")) || 0;
-        return getSkuNumber(a.sku) - getSkuNumber(b.sku);
+        return a.sku.localeCompare(b.sku);
       })
       .slice(0, 10);
   });
