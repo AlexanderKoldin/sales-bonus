@@ -5,7 +5,8 @@
  * @returns {number}
  */
 function calculateSimpleRevenue(purchase, _product) {
-   // @TODO: Расчет выручки от операции
+  // @TODO: Расчет выручки от операции
+  return purchase.quantity * _product.price;
 }
 
 /**
@@ -16,7 +17,11 @@ function calculateSimpleRevenue(purchase, _product) {
  * @returns {number}
  */
 function calculateBonusByProfit(index, total, seller) {
-    // @TODO: Расчет бонуса от позиции в рейтинге
+  // @TODO: Расчет бонуса от позиции в рейтинге
+  if (index === 0) return 1000;
+  if (index === 1) return 700;
+  if (index === 2) return 500;
+  return Math.max(100, 500 * (1 - index / total));
 }
 
 /**
@@ -26,19 +31,57 @@ function calculateBonusByProfit(index, total, seller) {
  * @returns {{revenue, top_products, bonus, name, sales_count, profit, seller_id}[]}
  */
 function analyzeSalesData(data, options) {
-    // @TODO: Проверка входных данных
+  // @TODO: Проверка входных данных
+  // @TODO: Проверка наличия опций
+  // @TODO: Подготовка промежуточных данных для сбора статистики
+  // @TODO: Индексация продавцов и товаров для быстрого доступа
+  // @TODO: Расчет выручки и прибыли для каждого продавца
+  // @TODO: Сортировка продавцов по прибыли
+  // @TODO: Назначение премий на основе ранжирования
+  // @TODO: Подготовка итоговой коллекции с нужными полями
 
-    // @TODO: Проверка наличия опций
+  if (!data || !Array.isArray(data)) return [];
+  if (!options.calculateRevenue || !options.calculateBonus) return [];
 
-    // @TODO: Подготовка промежуточных данных для сбора статистики
+  const sellers = {};
 
-    // @TODO: Индексация продавцов и товаров для быстрого доступа
+  data.forEach((purchase) => {
+    const sellerId = purchase.seller_id;
 
-    // @TODO: Расчет выручки и прибыли для каждого продавца
+    if (!sellers[sellerId]) {
+      sellers[sellerId] = {
+        seller_id: sellerId,
+        name: purchase.seller_name,
+        sales_count: 0,
+        revenue: 0,
+        profit: 0,
+        top_products: {},
+      };
+    }
 
-    // @TODO: Сортировка продавцов по прибыли
+    sellers[sellerId].sales_count += purchase.quantity;
 
-    // @TODO: Назначение премий на основе ранжирования
+    const productData = { price: purchase.unit_price };
+    const revenue = options.calculateRevenue(purchase, productData);
+    sellers[sellerId].revenue += revenue;
 
-    // @TODO: Подготовка итоговой коллекции с нужными полями
+    const productName = purchase.product_name;
+    sellers[sellerId].top_products[productName] =
+      (sellers[sellerId].top_products[productName] || 0) + purchase.quantity;
+  });
+
+  const sellerArray = Object.values(sellers);
+  sellerArray.sort((a, b) => b.revenue - a.revenue);
+
+  sellerArray.forEach((seller, index) => {
+    seller.bonus = options.calculateBonus(index, sellerArray.length, seller);
+  });
+
+  sellerArray.forEach((seller) => {
+    seller.top_products = Object.entries(seller.top_products)
+      .sort(([, countA], [, countB]) => countB - countA)
+      .slice(0, 3);
+  });
+
+  return sellerArray;
 }
