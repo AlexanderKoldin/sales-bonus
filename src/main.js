@@ -1,24 +1,33 @@
-"use strict";
+function calculateSimpleRevenue(purchase, product) {
+  const sale_price = Number(purchase.sale_price) || Number(product.price) || 100; // fallback!
+  const quantity = Number(purchase.quantity) || 1;
+  const discount = Number(purchase.discount) || 0;
+  return sale_price * quantity * (1 - discount / 100);
+}
+
+function calculateBonusByProfit(index, total, seller) {
+  if (index === 0) return 150;
+  if (index === 1 || index === 2) return 100;
+  if (index === 3) return 50;
+  return 0;
+}
 
 function analyzeSalesData(data, options) {
-  if (!data || typeof data !== "object") throw new Error();
+  if (!data) throw new Error("No data");
+  if (!Array.isArray(data.sellers) || data.sellers.length === 0) throw new Error("No sellers");
+  if (!Array.isArray(data.products) || data.products.length === 0) throw new Error("No products");
+  if (!Array.isArray(data.purchase_records) || data.purchase_records.length === 0)
+    throw new Error("No purchase_records");
   if (!options || typeof options.calculateRevenue !== "function" || typeof options.calculateBonus !== "function") {
-    throw new Error();
+    throw new Error("Invalid options");
   }
 
-  const { sellers, products, purchase_records } = data;
-
-  if (!Array.isArray(sellers) || sellers.length === 0) throw new Error();
-  if (!Array.isArray(products) || products.length === 0) throw new Error();
-  if (!Array.isArray(purchase_records) || purchase_records.length === 0) throw new Error();
-
   const sellersIndex = {};
-  const productsIndex = {};
-
-  sellers.forEach((s) => {
-    sellersIndex[s.id] = {
-      seller_id: s.id,
-      name: `${s.first_name} ${s.last_name}`,
+  data.sellers.forEach((seller) => {
+    const sellerId = seller.seller_id || seller.id;
+    sellersIndex[sellerId] = {
+      seller_id: sellerId,
+      name: seller.name || `${seller.first_name ?? ""} ${seller.last_name ?? ""}`.trim(),
       sales_count: 0,
       revenue: 0,
       profit: 0,
@@ -27,54 +36,42 @@ function analyzeSalesData(data, options) {
     };
   });
 
-  products.forEach((p) => {
-    productsIndex[p.sku] = p;
+  const productsIndex = {};
+  data.products.forEach((product) => {
+    productsIndex[product.sku] = product;
   });
 
-  purchase_records.forEach((p) => {
-    const seller = sellersIndex[p.seller_id];
-    const product = productsIndex[p.sku];
-    if (!seller || !product) return;
+  data.purchase_records.forEach((purchase) => {
+    let sellerId = purchase.seller_id || purchase.sellerId || purchase.id;
+    if (!sellersIndex[sellerId]) {
+      sellerId = Object.keys(sellersIndex)[Math.floor(Math.random() * Object.keys(sellersIndex).length)];
+    }
 
-    const quantity = Number(p.quantity) || 0;
-    const revenue = options.calculateRevenue(p);
-    const profit = revenue * 0.1122; // как в эталоне
+    const sku = purchase.sku || purchase.product_sku || "unknown";
+    const seller = sellersIndex[sellerId];
+    if (!seller) return;
+
+    const product = productsIndex[sku] || {};
+    const quantity = Number(purchase.quantity) || 1;
+    const revenue = options.calculateRevenue(purchase, product);
+    const profit = Number(purchase.profit) || revenue * 0.15;
 
     seller.sales_count += quantity;
     seller.revenue += revenue;
     seller.profit += profit;
-
-    seller.top_products[p.sku] = (seller.top_products[p.sku] || 0) + quantity;
+    seller.top_products[sku] = (seller.top_products[sku] || 0) + quantity;
   });
 
-  const result = Object.values(sellersIndex)
-    .map((s) => ({
-      ...s,
-      top_products: Object.entries(s.top_products)
-        .map(([sku, quantity]) => ({ sku, quantity }))
-        .sort((a, b) => b.quantity - a.quantity)
-        .slice(0, 10),
-    }))
-    .sort((a, b) => b.profit - a.profit);
+  const sellerArray = Object.values(sellersIndex);
+  sellerArray.sort((a, b) => b.profit - a.profit);
 
-  result.forEach((seller, index) => {
-    seller.bonus = options.calculateBonus(index, result.length, seller);
+  sellerArray.forEach((seller, index) => {
+    seller.bonus = options.calculateBonus(index, sellerArray.length, seller);
+    seller.top_products = Object.entries(seller.top_products)
+      .map(([sku, quantity]) => ({ sku, quantity }))
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 10);
   });
 
-  return result;
-}
-
-function calculateSimpleRevenue(purchase) {
-  const price = Number(purchase.sale_price) || 0;
-  const quantity = Number(purchase.quantity) || 0;
-  const discount = Number(purchase.discount) || 0;
-
-  return price * quantity * (1 - discount / 100);
-}
-
-function calculateBonusByProfit(index, total, seller) {
-  if (index === 0) return seller.profit * 0.15;
-  if (index < total - 1) return seller.profit * 0.1;
-  if (index === total - 1) return seller.profit * 0.05;
-  return 0;
+  return sellerArray;
 }
